@@ -1,169 +1,115 @@
 <!DOCTYPE html>
 <html lang="fa">
 <head>
-    <title>ردیاب هوشمند اتوبوس‌ها (پروژه bus-tracker-app-usb)</title>
+    <title>ردیاب موقعیت اتوبوس‌ها (پروژه bus-tracker-app-usb)</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #1e1e2f; /* پس‌زمینه تیره مایل به سرمه‌ای */
-            --surface-color: #27293d; /* سطح کمی روشن‌تر برای کارت‌ها و هدر/فوتر */
-            --primary-accent: #6271c2; /* آبی بنفش برای تاکید */
-            --secondary-accent: #ffc107; /* زرد کهربایی برای جزئیات خاص یا هشدارها (اختیاری) */
-            --text-color: #e0e0e5; /* رنگ متن اصلی روشن */
-            --text-color-muted: #a0a0b0; /* رنگ متن کم‌اهمیت‌تر */
-            --border-color: #3a3c53; /* رنگ بوردرها */
+            --primary-color: #007bff; /* آبی مدرن */
+            --secondary-color: #6c757d; /* خاکستری خنثی */
+            --light-bg: #f8f9fa;
+            --white-color: #ffffff;
+            --dark-text: #343a40;
             --border-radius: 8px;
-            --header-height: 60px;
-            --footer-height: 30px;
-            --font-family: 'Vazirmatn', 'Tahoma', sans-serif;
-            --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.2);
-            --shadow-strong: 0 6px 18px rgba(0, 0, 0, 0.3);
+            --header-height: 65px;
+            --footer-height: 35px;
         }
 
         * {
             box-sizing: border-box;
-            margin: 0;
-            padding: 0;
         }
 
         body {
-            font-family: var(--font-family);
-            background-color: var(--bg-color);
-            color: var(--text-color);
+            font-family: 'Vazirmatn', 'Tahoma', sans-serif; /* استفاده از فونت وزیرمتن */
+            margin: 0;
+            padding: 0;
             direction: rtl;
+            background-color: var(--light-bg);
+            color: var(--dark-text);
             display: flex;
             flex-direction: column;
             height: 100vh;
-            overflow: hidden;
+            overflow: hidden; /* جلوگیری از اسکرول اضافی */
         }
 
         .header {
-            background-color: var(--surface-color);
-            color: var(--text-color);
-            padding: 0 20px;
+            background-color: var(--primary-color);
+            color: var(--white-color);
+            padding: 18px 15px;
             text-align: center;
-            font-size: 1.5em; /* کمی کوچکتر برای ظرافت */
-            font-weight: 600; /* وزن متوسط برای عنوان */
+            font-size: 1.6em;
+            font-weight: 700;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             height: var(--header-height);
             display: flex;
             align-items: center;
             justify-content: center;
-            border-bottom: 1px solid var(--border-color);
-            /* box-shadow: var(--shadow-soft); */
-        }
-        .header-icon {
-            font-size: 1.2em;
-            margin-left: 10px;
-            color: var(--primary-accent);
         }
 
         #map {
             height: calc(100vh - var(--header-height) - var(--footer-height));
             width: 100%;
-            flex-grow: 1;
-        }
-        /* استایل برای زمانی که نقشه در حال بارگذاری است */
-        #map:empty {
-            background-color: #222; /* یک پس‌زمینه تیره برای نقشه قبل از بارگذاری */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.2em;
-            color: var(--text-color-muted);
-        }
-        #map:empty::before {
-            content: "در حال بارگذاری نقشه...";
+            flex-grow: 1; /* اجازه می‌دهد نقشه فضای باقی‌مانده را پر کند */
         }
 
-
-        /* استایل پاپ‌آپ‌های Leaflet برای تم تیره */
         .leaflet-popup-content-wrapper {
-            background: var(--surface-color) !important;
-            color: var(--text-color) !important;
             border-radius: var(--border-radius) !important;
-            box-shadow: var(--shadow-strong) !important;
-            border: 1px solid var(--border-color);
+            box-shadow: 0 1px 5px rgba(0,0,0,0.15);
         }
         .leaflet-popup-content {
-            font-family: var(--font-family) !important;
-            font-size: 14px !important;
-            line-height: 1.7 !important;
-            margin: 12px !important;
+            font-family: 'Vazirmatn', 'Tahoma', sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
         }
         .leaflet-popup-content b {
-            color: var(--primary-accent) !important;
-            font-weight: 600;
+            color: var(--primary-color);
         }
-        .leaflet-popup-tip-container {
-            /* برای مخفی کردن یا استایل دادن به پیکان پاپ‌آپ در صورت نیاز */
-        }
-        .leaflet-popup-tip {
-            background: var(--surface-color) !important;
-            border-bottom-color: var(--border-color) !important; /* اگر پیکان به پایین اشاره دارد */
-        }
-        .leaflet-container a.leaflet-popup-close-button {
-            color: var(--text-color-muted) !important;
-            padding: 8px 8px 0 0 !important;
-        }
-        .leaflet-container a.leaflet-popup-close-button:hover {
-            color: var(--text-color) !important;
-        }
-
 
         .last-updated-container {
             position: fixed;
-            bottom: calc(var(--footer-height) + 12px);
-            right: 12px;
-            background-color: var(--surface-color);
-            color: var(--text-color-muted);
-            padding: 7px 15px;
+            bottom: calc(var(--footer-height) + 15px); /* بالاتر از فوتر */
+            right: 15px;
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 8px 12px;
             border-radius: var(--border-radius);
-            font-size: 0.8em;
+            font-size: 0.85em; /* کمی کوچکتر برای ظرافت */
             z-index: 1000;
-            border: 1px solid var(--border-color);
-            box-shadow: var(--shadow-soft);
-            opacity: 0.9;
-            transition: opacity 0.3s ease;
-        }
-        .last-updated-container:hover {
-            opacity: 1;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+            color: var(--dark-text);
+            border: 1px solid #eee;
         }
 
         .footer {
-            background-color: var(--surface-color);
-            color: var(--text-color-muted);
-            padding: 0 20px;
+            background-color: #343a40; /* رنگ تیره‌تر برای فوتر */
+            color: var(--white-color);
+            padding: 8px 0;
             text-align: center;
-            font-size: 0.75em; /* بسیار کوچک برای ظرافت */
-            font-weight: 300; /* وزن سبک */
+            font-size: 0.85em;
             height: var(--footer-height);
             display: flex;
             align-items: center;
             justify-content: center;
             width: 100%;
-            border-top: 1px solid var(--border-color);
-            z-index: 1001;
+            z-index: 1001; /* بالاتر از کانتینر آپدیت، اگر همپوشانی ممکن بود */
         }
     </style>
 </head>
 <body>
 
-<div class="header">
-    <span class="header-icon">🛰️</span> ردیاب هوشمند اتوبوس‌ها
-</div>
+<div class="header">📍 ردیاب آنلاین اتوبوس‌های دانشگاه</div>
 
 <div id="map"></div>
 
 <div id="lastUpdated" class="last-updated-container">⏳ در حال بارگذاری اولیه...</div>
 
 <div class="footer">
-    ساخته شده به دست دانشجویان دانشکده برق و کامپیوتر - نسخه 2.0
+    ساخته شده به دست دانشجوهای دانشکده برق و کامپیوتر
 </div>
 
 <script>
@@ -181,34 +127,25 @@
     const db = firebase.firestore();
     const locationsCollection = db.collection("locations");
 
-    var map = L.map('map', {
-        // attributionControl: false // برای حذف Attribution از پایین نقشه اگر بخواهید
-    }).setView([32.4279, 53.6880], 6);
+    var map = L.map('map').setView([32.4279, 53.6880], 6); // مرکز ایران به عنوان پیش‌فرض
 
-    // استفاده از تایل‌های تیره برای نقشه (اختیاری، اما برای هماهنگی با تم تیره عالی است)
-    // CartoDB Dark Matter:
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: 'abcd',
-        maxZoom: 20
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
-    // اگر تایل روشن استاندارد را ترجیح می‌دهید:
-    // L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    //     maxZoom: 19,
-    //     attribution: '© <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    // }).addTo(map);
 
+    var busMarkers = {}; // برای نگهداری مارکرهای اتوبوس‌ها
+    const lastDeviceUpdateTimes = {}; // برای نگهداری آخرین زمان به‌روزرسانی هر دستگاه
 
-    var busMarkers = {};
-    const lastDeviceUpdateTimes = {};
-
-    // استفاده از آیکون قبلی که نیاز به کلید ندارد
+    // آیکون سفارشی برای اتوبوس با طراحی مدرن‌تر
     var busIcon = L.icon({
-        iconUrl: 'https://img.icons8.com/ios-filled/50/FFFFFF/bus.png', // آیکون سفید برای کنتراست با نقشه تیره یا روشن
-        iconSize: [30, 30], // کمی کوچکتر
-        iconAnchor: [15, 30],
-        popupAnchor: [0, -28]
+        iconUrl: 'https://api.geoapify.com/v1/icon/?type=material&color=%23007bff&icon=bus&iconType=awesome&scaleFactor=2&apiKey=YOUR_GEOAPIFY_KEY', // آیکون مدرن‌تر
+        iconSize: [38, 38], // اندازه آیکون
+        iconAnchor: [19, 38], // نقطه لنگر آیکون (پایین وسط)
+        popupAnchor: [0, -35] // نقطه باز شدن پاپ‌آپ نسبت به آیکون
     });
+    // اگر از آیکون پیش‌فرض قبلی می‌خواهید استفاده کنید:
+    // var busIcon = L.icon({ iconUrl: 'https://img.icons8.com/ios-filled/50/000000/bus.png', iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -28] });
 
 
     function formatReadableTimestamp(isoString) {
@@ -224,22 +161,23 @@
 
     function updateMarkersForDevice(doc) {
         const locationData = doc.data();
-        const deviceId = locationData.deviceId || doc.id;
+        const deviceId = locationData.deviceId || doc.id; // استفاده از deviceId یا ID داکیومنت
         const lat = locationData.latitude;
         const lng = locationData.longitude;
         const speed = locationData.speedKmph;
-        const gpsTimestamp = locationData.gpsTimestamp;
+        const gpsTimestamp = locationData.gpsTimestamp; // زمان از GPS دستگاه
 
         if (typeof lat !== 'number' || typeof lng !== 'number') {
-            console.warn("داده موقعیت نامعتبر:", deviceId, locationData);
+            console.warn("داده موقعیت نامعتبر دریافت شد:", deviceId, locationData);
             return;
         }
 
+        // ذخیره آخرین زمان به‌روزرسانی برای این دستگاه
         lastDeviceUpdateTimes[deviceId] = new Date(gpsTimestamp || Date.now());
-        updateOverallLastUpdated();
+        updateOverallLastUpdated(); // به‌روزرسانی نمایشگر آخرین زمان کلی
 
         var latLng = L.latLng(lat, lng);
-        var popupContent = `<b><span style="font-size: 1.1em;">شناسه اتوبوس: ${deviceId}</span></b><br>
+        var popupContent = `<b>🚌 شناسه اتوبوس: ${deviceId}</b><br>
                             سرعت: ${speed !== undefined ? parseFloat(speed).toFixed(1) + ' km/h' : 'N/A'}<br>
                             زمان GPS: ${formatReadableTimestamp(gpsTimestamp)}`;
 
@@ -260,9 +198,9 @@
 
         const lastUpdatedElement = document.getElementById('lastUpdated');
         if (mostRecentTime > 0) {
-            lastUpdatedElement.textContent = 'آخرین بروزرسانی: ' + new Date(mostRecentTime).toLocaleTimeString('fa-IR', {hour12: false});
+            lastUpdatedElement.textContent = 'آخرین بروزرسانی کلی: ' + new Date(mostRecentTime).toLocaleTimeString('fa-IR', {hour12: false});
         } else {
-            lastUpdatedElement.textContent = 'در انتظار داده...';
+            lastUpdatedElement.textContent = 'در انتظار دریافت اطلاعات...';
         }
     }
 
@@ -280,26 +218,28 @@
                 if (busMarkers[deviceId]) {
                     map.removeLayer(busMarkers[deviceId]);
                     delete busMarkers[deviceId];
-                    delete lastDeviceUpdateTimes[deviceId];
-                    updateOverallLastUpdated();
+                    delete lastDeviceUpdateTimes[deviceId]; // حذف از لیست زمان‌ها
+                    updateOverallLastUpdated(); // به‌روزرسانی نمایشگر زمان
                 }
             }
         });
 
+        // تنظیم خودکار زوم و مرکز نقشه بر اساس مارکرها
         if (newOrModifiedDocs && Object.keys(busMarkers).length > 0) {
            try {
                var group = new L.featureGroup(Object.values(busMarkers));
-               map.fitBounds(group.getBounds().pad(0.25)); // پدینگ کمتر برای حس فیت‌تر بودن
+               map.fitBounds(group.getBounds().pad(0.3)); // pad برای فاصله از لبه‌ها
            } catch(e) {
                console.warn("خطا در تنظیم محدوده نقشه: ", e);
            }
         } else if (Object.keys(busMarkers).length === 0) {
+            // اگر هیچ مارکری وجود ندارد، به نمای پیش‌فرض برگرد
             map.setView([32.4279, 53.6880], 6);
         }
 
     }, error => {
-        console.error("خطا در Firestore: ", error);
-        document.getElementById('lastUpdated').textContent = '⚠️ خطا در ارتباط.';
+        console.error("خطا در دریافت موقعیت‌ها از Firestore: ", error);
+        document.getElementById('lastUpdated').textContent = '⚠️ خطا در اتصال به سرور.';
     });
 </script>
 
