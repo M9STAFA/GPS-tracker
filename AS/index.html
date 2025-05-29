@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ردیاب آنلاین اتوبوس‌ها - زوم روی مسیر</title>
+    <title>ردیاب آنلاین اتوبوس‌ها - زوم بیشتر</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">
     <style>
@@ -57,7 +57,6 @@
         const mapElement = document.getElementById('map');
         const statusBarElement = document.getElementById('statusBar');
         
-        // داده GeoJSON مسیر شما
         const routeGeoJson = {
             "type": "FeatureCollection",
             "features": [
@@ -70,7 +69,7 @@
                             [60.85778886356127, 29.47387936843799],
                             [60.8492641870221, 29.454396285858493],
                             [60.8561495026878, 29.4518981840975],
-                            [60.86475614727024, 29.471453107994506] // این نقطه تکراری از نقطه اول است، برای بستن LineString لازم نیست اما اشکالی هم ندارد
+                            [60.86475614727024, 29.471453107994506]
                         ],
                         "type": "LineString"
                     }
@@ -78,18 +77,24 @@
             ]
         };
 
-        // ایجاد لایه GeoJSON از مسیر (اما به نقشه اضافه نمی‌کنیم، فقط برای گرفتن bounds)
         const routeLayer = L.geoJSON(routeGeoJson);
         const routeBounds = routeLayer.getBounds();
 
-        var map = L.map(mapElement); // نقشه را بدون setView اولیه ایجاد می‌کنیم
+        var map = L.map(mapElement); 
         
         if (routeBounds.isValid()) {
-            map.fitBounds(routeBounds.pad(0.1)); // زوم روی محدوده مسیر با کمی حاشیه
+            // تنظیم نمای اولیه نقشه روی محدوده مسیر با کمی حاشیه و افزایش سطح زوم
+            map.fitBounds(routeBounds.pad(0.05), { // کاهش پدینگ برای زوم بیشتر
+                 // zoomOffset: 1 // یک سطح زوم بیشتر از محاسبه خودکار fitBounds
+                               // می‌توانید این مقدار را 1 یا 2 یا بیشتر تنظیم کنید
+                               // یا از maxZoom برای محدود کردن استفاده کنید
+                 maxZoom: 16 // حداکثر سطح زوم را 16 در نظر بگیرید، حتی اگر fitBounds بیشتر محاسبه کند
+            }); 
+            console.log("نقشه روی محدوده مسیر با زوم بیشتر تنظیم شد.");
         } else {
             map.setView([32.4279, 53.6880], 6); // نمای پیش‌فرض اگر مسیر نامعتبر بود
+            console.log("مسیر نامعتبر، نقشه روی نمای پیش‌فرض تنظیم شد.");
         }
-
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
@@ -97,37 +102,17 @@
         }).addTo(map);
 
         // (اختیاری) نمایش خود مسیر روی نقشه
-        // L.geoJSON(routeGeoJson, { style: { color: 'blue', weight: 3, opacity: 0.7 } }).addTo(map);
+        L.geoJSON(routeGeoJson, { style: { color: '#FF6347', weight: 4, opacity: 0.8 } }).addTo(map);
 
 
         var busMarkers = {};
-        var initialZoomDone = true; // چون زوم اولیه را با routeBounds انجام دادیم
+        // initialZoomDone دیگر لازم نیست چون زوم اولیه بر اساس مسیر انجام شده و معمولاً تغییر نمی‌کند.
 
-        const MAX_FITBOUNDS_ZOOM = 16; 
+        // ... (بقیه کد fetchAndUpdateMarkers_adjusted، updateStatusBar، مدیریت Modal و Supabase Realtime مشابه قبل) ...
+        // اطمینان حاصل کنید که تابع fetchAndUpdateMarkers_adjusted و بقیه کد جاوااسکریپت از پاسخ قبلی اینجا کپی شده‌اند.
+        // برای اختصار، آنها را اینجا تکرار نمی‌کنم.
 
-        function updateStatusBar(message, isError = false) { /* ... مشابه قبل ... */ }
-        async function fetchAndUpdateMarkers() { /* ... مشابه قبل، اما بخش fitBounds اولیه را تغییر می‌دهیم یا حذف می‌کنیم ... */
-            // ... (کد فچ و پردازش داده‌ها مشابه قبل) ...
-            // در این حالت، دیگر نیازی به initialZoomDone و fitBounds اولیه روی مارکرها نیست
-            // چون نقشه از ابتدا روی مسیر زوم شده است.
-            // فقط مارکرها را آپدیت می‌کنیم.
-            // اگر می‌خواهید با آمدن مارکرها، نقشه کمی تنظیم شود، می‌توانید کد fitBounds با maxZoom را نگه دارید
-            // اما initialZoomDone را true فرض کنید.
-
-            if (!initialZoomDone && currentVisibleMarkers > 0) { // این بخش دیگر اجرا نخواهد شد اگر initialZoomDone از ابتدا true باشد
-                 var markerGroup = new L.featureGroup(Object.values(busMarkers));
-                 if (Object.keys(busMarkers).length > 0) {
-                     map.fitBounds(markerGroup.getBounds().pad(0.15), {
-                         maxZoom: MAX_FITBOUNDS_ZOOM,
-                     });
-                     // initialZoomDone = true; // این دیگر اینجا لازم نیست
-                 }
-            }
-            // ... (بقیه کد مشابه قبل)
-        }
-        // ... (بقیه کد مشابه قبل: مدیریت Modal و Supabase Realtime) ...
-
-        // کد کامل fetchAndUpdateMarkers برای این سناریو:
+        // کد کامل fetchAndUpdateMarkers_adjusted (بدون تغییرات عمده نسبت به قبل، چون زوم اولیه تغییر کرده)
         async function fetchAndUpdateMarkers_adjusted() {
             updateStatusBar('در حال دریافت آخرین موقعیت‌ها...');
 
@@ -181,26 +166,6 @@
                 updateStatusBar('هنوز داده معتبری از اتوبوس‌ها دریافت نشده است.');
             }
         }
-        // جایگزین کردن فراخوانی fetchAndUpdateMarkers با fetchAndUpdateMarkers_adjusted
-        const realtimeChannel = _supabase.channel('public:locations-channel-route') // نام کانال را کمی تغییر دادم
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'locations' }, (payload) => {
-              console.log('تغییر در Supabase دریافت شد:', payload);
-              updateStatusBar('داده جدید دریافت شد، بروزرسانی نقشه...');
-              fetchAndUpdateMarkers_adjusted(); // فراخوانی نسخه جدید تابع
-            }
-          )
-          .subscribe((status, err) => {
-            if (status === 'SUBSCRIBED') {
-              console.log('با موفقیت به تغییرات بلادرنگ Supabase متصل شد!');
-              updateStatusBar('متصل به سرور. در انتظار دریافت موقعیت‌ها...');
-              fetchAndUpdateMarkers_adjusted(); // فراخوانی نسخه جدید تابع
-            } else if (status === 'CHANNEL_ERROR') {
-                console.error('خطا در کانال بلادرنگ Supabase:', err);
-                updateStatusBar(`خطا در اتصال بلادرنگ: ${err ? err.message : 'نامشخص'}`, true);
-                fetchAndUpdateMarkers_adjusted();
-                setInterval(fetchAndUpdateMarkers_adjusted, 30000);
-            } else { console.log('وضعیت کانال بلادرنگ Supabase:', status); }
-          });
 
         // مدیریت Modal (مشابه قبل)
         var modal = document.getElementById("teamModal");
@@ -209,6 +174,27 @@
         openModalBtn.onclick = function(e) { e.preventDefault(); modal.style.display = "block"; }
         closeModalBtn.onclick = function() { modal.style.display = "none"; }
         window.onclick = function(event) { if (event.target == modal) modal.style.display = "none"; }
+
+        // اتصال به Supabase Realtime (مشابه قبل)
+        const realtimeChannel = _supabase.channel('public:locations-channel-route-zoom') // نام کانال را کمی تغییر دادم
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'locations' }, (payload) => {
+              console.log('تغییر در Supabase دریافت شد:', payload);
+              updateStatusBar('داده جدید دریافت شد، بروزرسانی نقشه...');
+              fetchAndUpdateMarkers_adjusted();
+            }
+          )
+          .subscribe((status, err) => {
+            if (status === 'SUBSCRIBED') {
+              console.log('با موفقیت به تغییرات بلادرنگ Supabase متصل شد!');
+              updateStatusBar('متصل به سرور. در انتظار دریافت موقعیت‌ها...');
+              fetchAndUpdateMarkers_adjusted();
+            } else if (status === 'CHANNEL_ERROR') {
+                console.error('خطا در کانال بلادرنگ Supabase:', err);
+                updateStatusBar(`خطا در اتصال بلادرنگ: ${err ? err.message : 'نامشخص'}`, true);
+                fetchAndUpdateMarkers_adjusted();
+                setInterval(fetchAndUpdateMarkers_adjusted, 30000);
+            } else { console.log('وضعیت کانال بلادرنگ Supabase:', status); }
+          });
 
     </script>
 </body>
