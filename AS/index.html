@@ -3,26 +3,115 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ردیاب آنلاین اتوبوس‌ها - زوم روی مسیر</title>
+    <title>ردیاب آنلاین اتوبوس‌ها - نهایی</title>
+
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">
+
     <style>
-        /* استایل‌های CSS مشابه قبل - بدون تغییر */
-        body { font-family: 'Vazirmatn', sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; background-color: #f4f7f6; color: #333; }
-        .header { background: linear-gradient(90deg, #2c3e50, #3498db); color: white; padding: 18px 20px; text-align: center; font-size: 1.6em; font-weight: 500; box-shadow: 0 2px 8px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; }
-        .header svg { width: 30px; height: 30px; fill: white; margin-left: 10px; }
-        #map-container { flex-grow: 1; position: relative; }
-        #map { width: 100%; height: 100%; }
-        .footer { background-color: #2c3e50; color: #bdc3c7; padding: 12px 20px; text-align: center; font-size: 0.9em; }
-        .footer a { color: #3498db; text-decoration: none; font-weight: 500; }
-        .footer a:hover { text-decoration: underline; }
-        .leaflet-popup-content-wrapper { border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.15); }
-        .leaflet-popup-content { font-size: 14px; line-height: 1.6; }
-        .leaflet-popup-content b { color: #3498db; }
-        .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); animation: fadeIn 0.3s ease-out; }
-        .modal-content { background-color: #fff; margin: 10% auto; padding: 25px 30px; border: 1px solid #ddd; width: 80%; max-width: 550px; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); text-align: center; position: relative; animation: slideIn 0.4s ease-out; }
-        .close-button { color: #aaa; position: absolute; top: 15px; right: 20px; font-size: 30px; font-weight: bold; cursor: pointer; }
-        .close-button:hover, .close-button:focus { color: #333; }
+        body {
+            font-family: 'Vazirmatn', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #f4f7f6;
+            color: #333;
+            overflow: hidden; /* جلوگیری از اسکرول احتمالی بدنه */
+        }
+        .header {
+            background: linear-gradient(90deg, #2c3e50, #3498db);
+            color: white;
+            padding: 18px 20px;
+            text-align: center;
+            font-size: 1.6em;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0; /* جلوگیری از کوچک شدن هدر */
+        }
+        .header svg {
+            width: 30px;
+            height: 30px;
+            fill: white;
+            margin-left: 10px;
+        }
+        #map-container {
+            flex-grow: 1;
+            position: relative;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        .footer {
+            background-color: #2c3e50;
+            color: #bdc3c7;
+            padding: 12px 20px;
+            text-align: center;
+            font-size: 0.9em;
+            flex-shrink: 0; /* جلوگیری از کوچک شدن فوتر */
+        }
+        .footer a {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+        }
+        .leaflet-popup-content {
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .leaflet-popup-content b {
+            color: #3498db;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.6);
+            animation: fadeIn 0.3s ease-out;
+        }
+        .modal-content {
+            background-color: #fff;
+            margin: 10% auto;
+            padding: 25px 30px;
+            border: 1px solid #ddd;
+            width: 80%;
+            max-width: 550px;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            text-align: center;
+            position: relative;
+            animation: slideIn 0.4s ease-out;
+        }
+        .close-button {
+            color: #aaa;
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 30px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: #333;
+        }
         .modal-content h2 { color: #2c3e50; margin-bottom: 20px; font-size: 1.8em; }
         .modal-content p { font-size: 1.1em; line-height: 1.7; margin-bottom: 15px; color: #555; }
         .team-info img { max-width: 150px; height: auto; margin-bottom: 20px; border-radius: 8px; }
@@ -31,19 +120,63 @@
         .contact-info a:hover { text-decoration: underline; }
         @keyframes fadeIn { from {opacity: 0;} to {opacity: 1;} }
         @keyframes slideIn { from {transform: translateY(-50px); opacity: 0;} to {transform: translateY(0); opacity: 1;} }
-        .status-bar { position: absolute; bottom: 15px; right: 15px; background-color: rgba(255, 255, 255, 0.9); padding: 10px 15px; border-radius: 6px; font-size: 0.9em; z-index: 1000; box-shadow: 0 1px 4px rgba(0,0,0,0.2); border: 1px solid #eee; }
-        .custom-leaflet-bus-icon { display: flex; align-items: center; justify-content: center; }
+        .status-bar {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            z-index: 1000; /* بالاتر از کنترل‌های Leaflet */
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+            border: 1px solid #eee;
+        }
+        .custom-leaflet-bus-icon { /* برای اطمینان از نمایش صحیح آیکون SVG */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
     </style>
 </head>
 <body>
-    <!-- HTML مشابه قبل -->
+
     <div class="header">
         <svg viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5H15V3H9v2H6.5c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5s1.5.67 1.5 1.5s-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"></path></svg>
         ردیاب آنلاین اتوبوس‌ها
     </div>
-    <div id="map-container"><div id="map"></div><div id="statusBar" class="status-bar">در حال اتصال...</div></div>
-    <div class="footer">ساخته شده به دست دانشجویان دانشکده برق و کامپیوتر - <a href="#" id="openTeamModal">بیشتر...</a></div>
-    <div id="teamModal" class="modal"><div class="modal-content"><span class="close-button" id="closeTeamModal">×</span><h2>تیم سازنده پروژه</h2><div class="team-info"><img src="https://via.placeholder.com/150x80.png?text=لوگوی+دانشگاه" alt="لوگوی دانشگاه"><p>این پروژه توسط جمعی از دانشجویان علاقه‌مند دانشکده مهندسی برق و کامپیوتر دانشگاه [نام دانشگاه شما] توسعه داده شده است.</p><p>اعضای تیم:</p><ul><li>نام عضو اول - نقش</li><li>نام عضو دوم - نقش</li></ul></div><div class="contact-info"><p>اطلاعات تماس:</p><a href="mailto:email@example.com">ایمیل تیم</a> | <a href="https://github.com/your-repo" target="_blank">پروژه در گیت‌هاب</a></div></div></div>
+
+    <div id="map-container">
+        <div id="map"></div>
+        <div id="statusBar" class="status-bar">در حال مقداردهی اولیه...</div>
+    </div>
+
+    <div class="footer">
+        ساخته شده به دست دانشجویان دانشکده برق و کامپیوتر - <a href="#" id="openTeamModal">بیشتر...</a>
+    </div>
+
+    <div id="teamModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" id="closeTeamModal">×</span>
+            <h2>تیم سازنده پروژه</h2>
+            <div class="team-info">
+                <img src="YOUR_UNIVERSITY_LOGO_URL" alt="لوگوی دانشگاه"> <!-- URL لوگو را جایگزین کنید -->
+                <p>این پروژه توسط جمعی از دانشجویان علاقه‌مند دانشکده مهندسی برق و کامپیوتر دانشگاه [نام دانشگاه شما] به عنوان یک پروژه [نوع پروژه] توسعه داده شده است.</p>
+                <p><strong>اعضای تیم:</strong></p>
+                <ul style="list-style-type: none; padding-right: 0;">
+                    <li>نام عضو اول - نقش/تخصص</li>
+                    <li>نام عضو دوم - نقش/تخصص</li>
+                    <!-- در صورت نیاز اعضای بیشتری اضافه کنید -->
+                </ul>
+            </div>
+            <div class="contact-info">
+                <p><strong>اطلاعات تماس:</strong></p>
+                <a href="mailto:team.email@example.com">ایمیل تیم</a> | 
+                <a href="https://github.com/your-username/your-repo-name" target="_blank" rel="noopener noreferrer">پروژه در گیت‌هاب</a>
+                <!-- لینک‌های دیگر مانند وب‌سایت دانشکده و ... -->
+            </div>
+        </div>
+    </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -57,39 +190,28 @@
         const mapElement = document.getElementById('map');
         const statusBarElement = document.getElementById('statusBar');
         
-        // داده GeoJSON مسیر شما
         const routeGeoJson = {
-            "type": "FeatureCollection",
-            "features": [
-                {
-                    "type": "Feature",
-                    "properties": {},
-                    "geometry": {
-                        "coordinates": [
-                            [60.86467417922697, 29.471560150120226],
-                            [60.85778886356127, 29.47387936843799],
-                            [60.8492641870221, 29.454396285858493],
-                            [60.8561495026878, 29.4518981840975],
-                            [60.86475614727024, 29.471453107994506] // این نقطه تکراری از نقطه اول است، برای بستن LineString لازم نیست اما اشکالی هم ندارد
-                        ],
-                        "type": "LineString"
-                    }
-                }
+            "type": "FeatureCollection", "features": [
+                {"type": "Feature", "properties": {}, "geometry": {
+                    "coordinates": [ /* مختصات LineString شما */
+                        [60.86467417922697, 29.471560150120226],[60.85778886356127, 29.47387936843799],
+                        [60.8492641870221, 29.454396285858493],[60.8561495026878, 29.4518981840975],
+                        [60.86475614727024, 29.471453107994506]
+                    ], "type": "LineString"
+                }}
             ]
         };
 
-        // ایجاد لایه GeoJSON از مسیر (اما به نقشه اضافه نمی‌کنیم، فقط برای گرفتن bounds)
         const routeLayer = L.geoJSON(routeGeoJson);
         const routeBounds = routeLayer.getBounds();
-
-        var map = L.map(mapElement); // نقشه را بدون setView اولیه ایجاد می‌کنیم
+        var map = L.map(mapElement); 
         
         if (routeBounds.isValid()) {
-            map.fitBounds(routeBounds.pad(0.1)); // زوم روی محدوده مسیر با کمی حاشیه
+            map.fitBounds(routeBounds.pad(0.12)); // پدینگ را کمی تنظیم کنید
         } else {
-            map.setView([32.4279, 53.6880], 6); // نمای پیش‌فرض اگر مسیر نامعتبر بود
+            console.error("محدوده مسیر GeoJSON نامعتبر است. استفاده از نمای پیش‌فرض.");
+            map.setView([32.4279, 53.6880], 6); 
         }
-
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
@@ -97,56 +219,37 @@
         }).addTo(map);
 
         // (اختیاری) نمایش خود مسیر روی نقشه
-        // L.geoJSON(routeGeoJson, { style: { color: 'blue', weight: 3, opacity: 0.7 } }).addTo(map);
-
+        L.geoJSON(routeGeoJson, { 
+            style: { color: 'rgba(52, 152, 219, 0.7)', weight: 4, opacity: 0.8, dashArray: '7, 7' } 
+        }).addTo(map);
 
         var busMarkers = {};
-        var initialZoomDone = true; // چون زوم اولیه را با routeBounds انجام دادیم
 
-        const MAX_FITBOUNDS_ZOOM = 16; 
-
-        function updateStatusBar(message, isError = false) { /* ... مشابه قبل ... */ }
-        async function fetchAndUpdateMarkers() { /* ... مشابه قبل، اما بخش fitBounds اولیه را تغییر می‌دهیم یا حذف می‌کنیم ... */
-            // ... (کد فچ و پردازش داده‌ها مشابه قبل) ...
-            // در این حالت، دیگر نیازی به initialZoomDone و fitBounds اولیه روی مارکرها نیست
-            // چون نقشه از ابتدا روی مسیر زوم شده است.
-            // فقط مارکرها را آپدیت می‌کنیم.
-            // اگر می‌خواهید با آمدن مارکرها، نقشه کمی تنظیم شود، می‌توانید کد fitBounds با maxZoom را نگه دارید
-            // اما initialZoomDone را true فرض کنید.
-
-            if (!initialZoomDone && currentVisibleMarkers > 0) { // این بخش دیگر اجرا نخواهد شد اگر initialZoomDone از ابتدا true باشد
-                 var markerGroup = new L.featureGroup(Object.values(busMarkers));
-                 if (Object.keys(busMarkers).length > 0) {
-                     map.fitBounds(markerGroup.getBounds().pad(0.15), {
-                         maxZoom: MAX_FITBOUNDS_ZOOM,
-                     });
-                     // initialZoomDone = true; // این دیگر اینجا لازم نیست
-                 }
+        function updateStatusBar(message, isError = false) {
+            if (statusBarElement) {
+                statusBarElement.textContent = message;
+                statusBarElement.style.color = isError ? '#e74c3c' : '#2c3e50'; // رنگ قرمز برای خطا
             }
-            // ... (بقیه کد مشابه قبل)
         }
-        // ... (بقیه کد مشابه قبل: مدیریت Modal و Supabase Realtime) ...
 
-        // کد کامل fetchAndUpdateMarkers برای این سناریو:
-        async function fetchAndUpdateMarkers_adjusted() {
+        async function fetchAndUpdateMarkers() {
             updateStatusBar('در حال دریافت آخرین موقعیت‌ها...');
-
             const { data, error } = await _supabase
                 .from('locations')
                 .select('device_id, latitude, longitude, speed_kmph, gps_timestamp, created_at')
                 .order('created_at', { ascending: false })
-                .limit(100);
+                .limit(100); // یا تعداد مناسب دیگر
 
             if (error) {
                 console.error('Error fetching locations:', error);
-                updateStatusBar(`خطا: ${error.message}`, true);
+                updateStatusBar(`خطا در دریافت داده: ${error.message}`, true);
                 return;
             }
 
             const latestDeviceData = {};
             if (data) {
                 data.forEach(loc => {
-                    if (!latestDeviceData[loc.device_id]) {
+                    if (loc.device_id && !latestDeviceData[loc.device_id]) { // اطمینان از وجود device_id
                         latestDeviceData[loc.device_id] = loc;
                     }
                 });
@@ -181,35 +284,47 @@
                 updateStatusBar('هنوز داده معتبری از اتوبوس‌ها دریافت نشده است.');
             }
         }
-        // جایگزین کردن فراخوانی fetchAndUpdateMarkers با fetchAndUpdateMarkers_adjusted
-        const realtimeChannel = _supabase.channel('public:locations-channel-route') // نام کانال را کمی تغییر دادم
+        
+        var modal = document.getElementById("teamModal");
+        var openModalBtn = document.getElementById("openTeamModal");
+        var closeModalBtn = document.getElementById("closeTeamModal");
+        if(openModalBtn) openModalBtn.onclick = function(e) { e.preventDefault(); modal.style.display = "block"; }
+        if(closeModalBtn) closeModalBtn.onclick = function() { modal.style.display = "none"; }
+        window.onclick = function(event) { if (event.target == modal) modal.style.display = "none"; }
+
+        updateStatusBar('در حال اتصال به سرور Supabase...');
+        const realtimeChannel = _supabase.channel('public:locations-updates') // نام کانال می‌تواند هر چیزی باشد
           .on('postgres_changes', { event: '*', schema: 'public', table: 'locations' }, (payload) => {
-              console.log('تغییر در Supabase دریافت شد:', payload);
-              updateStatusBar('داده جدید دریافت شد، بروزرسانی نقشه...');
-              fetchAndUpdateMarkers_adjusted(); // فراخوانی نسخه جدید تابع
+              console.log('Supabase Realtime: Data changed', payload);
+              fetchAndUpdateMarkers();
             }
           )
           .subscribe((status, err) => {
             if (status === 'SUBSCRIBED') {
-              console.log('با موفقیت به تغییرات بلادرنگ Supabase متصل شد!');
-              updateStatusBar('متصل به سرور. در انتظار دریافت موقعیت‌ها...');
-              fetchAndUpdateMarkers_adjusted(); // فراخوانی نسخه جدید تابع
+              console.log('Supabase Realtime: SUBSCRIBED');
+              updateStatusBar('متصل شد! در انتظار اولین داده‌ها...');
+              fetchAndUpdateMarkers(); // بارگذاری اولیه
             } else if (status === 'CHANNEL_ERROR') {
-                console.error('خطا در کانال بلادرنگ Supabase:', err);
+                console.error('Supabase Realtime: CHANNEL_ERROR', err);
                 updateStatusBar(`خطا در اتصال بلادرنگ: ${err ? err.message : 'نامشخص'}`, true);
-                fetchAndUpdateMarkers_adjusted();
-                setInterval(fetchAndUpdateMarkers_adjusted, 30000);
-            } else { console.log('وضعیت کانال بلادرنگ Supabase:', status); }
+                fetchAndUpdateMarkers(); // تلاش برای فچ عادی
+                setInterval(fetchAndUpdateMarkers, 30000); // Fallback به polling
+            } else if (status === 'TIMED_OUT') {
+                console.warn('Supabase Realtime: TIMED_OUT');
+                updateStatusBar('اتصال بلادرنگ منقضی شد. تلاش مجدد...', true);
+                fetchAndUpdateMarkers();
+                setInterval(fetchAndUpdateMarkers, 30000);
+            } else if (status === 'CLOSED') {
+                console.warn('Supabase Realtime: Channel CLOSED');
+                updateStatusBar('اتصال بلادرنگ بسته شد.', true);
+            } else {
+                console.log('Supabase Realtime: Status -', status);
+                // برای وضعیت‌های موقت مثل 'CONNECTING', 'JOINING' پیام خاصی نشان ندهیم مگر اینکه طولانی شوند
+                if (status !== 'CONNECTING' && status !== 'JOINING' && status !== 'LEAVING') {
+                     updateStatusBar(`وضعیت اتصال: ${status}`);
+                }
+            }
           });
-
-        // مدیریت Modal (مشابه قبل)
-        var modal = document.getElementById("teamModal");
-        var openModalBtn = document.getElementById("openTeamModal");
-        var closeModalBtn = document.getElementById("closeTeamModal");
-        openModalBtn.onclick = function(e) { e.preventDefault(); modal.style.display = "block"; }
-        closeModalBtn.onclick = function() { modal.style.display = "none"; }
-        window.onclick = function(event) { if (event.target == modal) modal.style.display = "none"; }
-
     </script>
 </body>
 </html>
