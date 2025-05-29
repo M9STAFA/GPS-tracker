@@ -1,138 +1,247 @@
 <!DOCTYPE html>
-<html>
+<html lang="fa">
 <head>
-    <title>GPS Tracker - Supabase</title>
+    <title>ردیاب موقعیت اتوبوس‌ها (پروژه bus-tracker-app-usb)</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- Supabase.js SDK -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        #map { height: calc(100vh - 70px); width: 100%; }
-        body { font-family: 'Tahoma', sans-serif; margin:0; padding:0; direction: rtl; }
-        .header { background-color: #3ecf8e; /* رنگ سبز Supabase */ color: white; padding: 15px; text-align: center; font-size: 1.5em; }
-        .leaflet-popup-content { font-size: 14px; }
-        .status-bar { position: fixed; bottom: 10px; left: 10px; background-color: rgba(255, 255, 255, 0.85); padding: 8px 12px; border-radius: 5px; font-size: 13px; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        :root {
+            --primary-color: #007bff; /* آبی مدرن */
+            --secondary-color: #6c757d; /* خاکستری خنثی */
+            --light-bg: #f8f9fa;
+            --white-color: #ffffff;
+            --dark-text: #343a40;
+            --border-radius: 8px;
+            --header-height: 65px;
+            --footer-height: 35px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Vazirmatn', 'Tahoma', sans-serif; /* استفاده از فونت وزیرمتن */
+            margin: 0;
+            padding: 0;
+            direction: rtl;
+            background-color: var(--light-bg);
+            color: var(--dark-text);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden; /* جلوگیری از اسکرول اضافی */
+        }
+
+        .header {
+            background-color: var(--primary-color);
+            color: var(--white-color);
+            padding: 18px 15px;
+            text-align: center;
+            font-size: 1.6em;
+            font-weight: 700;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            height: var(--header-height);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #map {
+            height: calc(100vh - var(--header-height) - var(--footer-height));
+            width: 100%;
+            flex-grow: 1; /* اجازه می‌دهد نقشه فضای باقی‌مانده را پر کند */
+        }
+
+        .leaflet-popup-content-wrapper {
+            border-radius: var(--border-radius) !important;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.15);
+        }
+        .leaflet-popup-content {
+            font-family: 'Vazirmatn', 'Tahoma', sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .leaflet-popup-content b {
+            color: var(--primary-color);
+        }
+
+        .last-updated-container {
+            position: fixed;
+            bottom: calc(var(--footer-height) + 15px); /* بالاتر از فوتر */
+            right: 15px;
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 8px 12px;
+            border-radius: var(--border-radius);
+            font-size: 0.85em; /* کمی کوچکتر برای ظرافت */
+            z-index: 1000;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+            color: var(--dark-text);
+            border: 1px solid #eee;
+        }
+
+        .footer {
+            background-color: #343a40; /* رنگ تیره‌تر برای فوتر */
+            color: var(--white-color);
+            padding: 8px 0;
+            text-align: center;
+            font-size: 0.85em;
+            height: var(--footer-height);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            z-index: 1001; /* بالاتر از کانتینر آپدیت، اگر همپوشانی ممکن بود */
+        }
     </style>
 </head>
 <body>
-<div class="header">ردیاب آنلاین اتوبوس‌ها (Supabase)</div>
+
+<div class="header">📍 ردیاب آنلاین اتوبوس‌های دانشگاه</div>
+
 <div id="map"></div>
-<div id="statusBar" class="status-bar">در حال اتصال به Supabase...</div>
+
+<div id="lastUpdated" class="last-updated-container">⏳ در حال بارگذاری اولیه...</div>
+
+<div class="footer">
+    ساخته شده به دست دانشجوهای دانشکده برق و کامپیوتر
+</div>
 
 <script>
-    const SUPABASE_URL = 'https://xqwgojhhzicequgakcpy.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxd2dvamhoemljZXF1Z2FrY3B5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg1MzY1NTAsImV4cCI6MjA2NDExMjU1MH0.znQuBZ8TVCpBR2IIFdM5x01544YChViJirP_Ia_wKZM';
+    const firebaseConfig = {
+      apiKey: "AIzaSyCCNBFlmY3akMMsNoGecKTrOR_LMaHJ-6A", // لطفاً کلید واقعی خود را جایگزین کنید
+      authDomain: "bus-tracker-app-usb.firebaseapp.com",
+      projectId: "bus-tracker-app-usb",
+      storageBucket: "bus-tracker-app-usb.firebasestorage.app",
+      messagingSenderId: "652452426183",
+      appId: "1:652452426183:web:a0014cc421c727bf24a9e2",
+      measurementId: "G-C218VLB61E"
+    };
 
-    const { createClient } = supabase;
-    const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const locationsCollection = db.collection("locations");
 
-    const mapElement = document.getElementById('map');
-    const statusBarElement = document.getElementById('statusBar');
-    var map = L.map(mapElement).setView([32.4279, 53.6880], 6); // مرکز ایران
+    var map = L.map('map').setView([32.4279, 53.6880], 6); // مرکز ایران به عنوان پیش‌فرض
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        attribution: '© <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        attribution: '© <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
 
-    var busMarkers = {}; // { deviceId: L.Marker }
+    var busMarkers = {}; // برای نگهداری مارکرهای اتوبوس‌ها
+    const lastDeviceUpdateTimes = {}; // برای نگهداری آخرین زمان به‌روزرسانی هر دستگاه
 
-    function updateStatusBar(message, isError = false) {
-        statusBarElement.textContent = message;
-        statusBarElement.style.color = isError ? 'red' : 'black';
+    // آیکون سفارشی برای اتوبوس با طراحی مدرن‌تر
+    var busIcon = L.icon({
+        iconUrl: 'https://api.geoapify.com/v1/icon/?type=material&color=%23007bff&icon=bus&iconType=awesome&scaleFactor=2&apiKey=YOUR_GEOAPIFY_KEY', // آیکون مدرن‌تر
+        iconSize: [38, 38], // اندازه آیکون
+        iconAnchor: [19, 38], // نقطه لنگر آیکون (پایین وسط)
+        popupAnchor: [0, -35] // نقطه باز شدن پاپ‌آپ نسبت به آیکون
+    });
+    // اگر از آیکون پیش‌فرض قبلی می‌خواهید استفاده کنید:
+    // var busIcon = L.icon({ iconUrl: 'https://img.icons8.com/ios-filled/50/000000/bus.png', iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -28] });
+
+
+    function formatReadableTimestamp(isoString) {
+        if (!isoString) return 'نامشخص';
+        try {
+            const date = new Date(isoString);
+            return date.toLocaleString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+        } catch (e) {
+            console.warn("خطا در تبدیل تاریخ:", isoString, e);
+            return 'نامشخص';
+        }
     }
 
-    async function fetchAndUpdateMarkers() {
-        updateStatusBar('در حال دریافت آخرین موقعیت‌ها...');
-        const { data, error } = await _supabase
-            .from('locations') // نام جدول شما
-            .select('device_id, latitude, longitude, speed_kmph, gps_timestamp, created_at')
-            .order('created_at', { ascending: false })
-            .limit(100); // خواندن 100 رکورد آخر
+    function updateMarkersForDevice(doc) {
+        const locationData = doc.data();
+        const deviceId = locationData.deviceId || doc.id; // استفاده از deviceId یا ID داکیومنت
+        const lat = locationData.latitude;
+        const lng = locationData.longitude;
+        const speed = locationData.speedKmph;
+        const gpsTimestamp = locationData.gpsTimestamp; // زمان از GPS دستگاه
 
-        if (error) {
-            console.error('Error fetching locations:', error);
-            updateStatusBar(`خطا در دریافت داده: ${error.message}`, true);
+        if (typeof lat !== 'number' || typeof lng !== 'number') {
+            console.warn("داده موقعیت نامعتبر دریافت شد:", deviceId, locationData);
             return;
         }
 
-        if (data && data.length > 0) {
-            const latestDeviceData = {};
-            data.forEach(loc => {
-                if (!latestDeviceData[loc.device_id]) {
-                    latestDeviceData[loc.device_id] = loc;
-                }
-            });
+        // ذخیره آخرین زمان به‌روزرسانی برای این دستگاه
+        lastDeviceUpdateTimes[deviceId] = new Date(gpsTimestamp || Date.now());
+        updateOverallLastUpdated(); // به‌روزرسانی نمایشگر آخرین زمان کلی
 
-            let markersUpdatedCount = 0;
-            Object.values(latestDeviceData).forEach(location => {
-                if (!location.latitude || !location.longitude) {
-                    console.warn("داده موقعیت نامعتبر برای دستگاه:", location.device_id, location);
-                    return;
-                }
-                markersUpdatedCount++;
-                var deviceId = location.device_id;
-                var latLng = [location.latitude, location.longitude];
-                var popupContent = `<b>اتوبوس: ${deviceId}</b><br>
-                                    سرعت: ${location.speed_kmph != null ? parseFloat(location.speed_kmph).toFixed(1) + ' km/h' : 'N/A'}<br>
-                                    زمان GPS: ${location.gps_timestamp ? new Date(location.gps_timestamp).toLocaleString('fa-IR') : 'N/A'}<br>
-                                    ثبت در: ${new Date(location.created_at).toLocaleString('fa-IR')}`;
+        var latLng = L.latLng(lat, lng);
+        var popupContent = `<b>🚌 شناسه اتوبوس: ${deviceId}</b><br>
+                            سرعت: ${speed !== undefined ? parseFloat(speed).toFixed(1) + ' km/h' : 'N/A'}<br>
+                            زمان GPS: ${formatReadableTimestamp(gpsTimestamp)}`;
 
-                if (busMarkers[deviceId]) {
-                    busMarkers[deviceId].setLatLng(latLng).setPopupContent(popupContent);
-                } else {
-                    var busIcon = L.icon({ iconUrl: 'https://img.icons8.com/ios-filled/50/000000/bus.png', iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -28] });
-                    busMarkers[deviceId] = L.marker(latLng, {icon: busIcon}).addTo(map).bindPopup(popupContent);
-                }
-            });
-
-            if (markersUpdatedCount > 0 && Object.keys(busMarkers).length > 0) {
-               try {
-                   var group = new L.featureGroup(Object.values(busMarkers));
-                   map.fitBounds(group.getBounds().pad(0.3));
-               } catch(e) { console.warn("خطا در تنظیم محدوده نقشه:", e); }
-            }
-            updateStatusBar(`آخرین بروزرسانی: ${new Date().toLocaleTimeString('fa-IR')} - ${markersUpdatedCount} دستگاه نمایش داده شد.`);
-
-        } else if (data && data.length === 0) {
-            updateStatusBar('هنوز هیچ داده‌ای برای نمایش وجود ندارد.');
+        if (busMarkers[deviceId]) {
+            busMarkers[deviceId].setLatLng(latLng).setPopupContent(popupContent);
+        } else {
+            busMarkers[deviceId] = L.marker(latLng, {icon: busIcon}).addTo(map).bindPopup(popupContent);
         }
     }
 
-    // استفاده از Supabase Realtime برای به‌روزرسانی‌های بلادرنگ
-    const realtimeChannel = _supabase.channel('public:locations')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'locations' },
-        (payload) => {
-          console.log('تغییر در Supabase دریافت شد:', payload);
-          updateStatusBar('داده جدید دریافت شد، در حال بروزرسانی نقشه...');
-          fetchAndUpdateMarkers(); // با دریافت هر تغییری، داده‌ها را مجدداً فچ و نقشه را آپدیت کن
+    function updateOverallLastUpdated() {
+        let mostRecentTime = 0;
+        for (const device in lastDeviceUpdateTimes) {
+            if (lastDeviceUpdateTimes[device].getTime() > mostRecentTime) {
+                mostRecentTime = lastDeviceUpdateTimes[device].getTime();
+            }
         }
-      )
-      .subscribe((status, err) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('با موفقیت به تغییرات بلادرنگ Supabase متصل شد!');
-          updateStatusBar('متصل شد! در انتظار دریافت موقعیت‌ها...');
-          fetchAndUpdateMarkers(); // اولین بار داده‌ها را بارگذاری کن
-        } else if (status === 'CHANNEL_ERROR') {
-            console.error('خطا در کانال بلادرنگ Supabase:', err);
-            updateStatusBar(`خطا در اتصال بلادرنگ: ${err ? err.message : 'خطای نامشخص'}`, true);
-        } else if (status === 'TIMED_OUT') {
-            console.warn('اتصال بلادرنگ Supabase منقضی شد.');
-            updateStatusBar('اتصال بلادرنگ منقضی شد. تلاش مجدد...', true);
+
+        const lastUpdatedElement = document.getElementById('lastUpdated');
+        if (mostRecentTime > 0) {
+            lastUpdatedElement.textContent = 'آخرین بروزرسانی کلی: ' + new Date(mostRecentTime).toLocaleTimeString('fa-IR', {hour12: false});
         } else {
-            console.log('وضعیت کانال بلادرنگ Supabase:', status);
+            lastUpdatedElement.textContent = 'در انتظار دریافت اطلاعات...';
         }
-      });
+    }
 
-    // اگر نمی‌خواهید از بلادرنگ استفاده کنید، این خطوط را جایگزین قسمت بالا کنید:
-    // fetchAndUpdateMarkers();
-    // setInterval(fetchAndUpdateMarkers, 20000); // هر 20 ثانیه
+    locationsCollection.onSnapshot(snapshot => {
+        let newOrModifiedDocs = false;
+        snapshot.docChanges().forEach(change => {
+            const doc = change.doc;
+            const deviceId = doc.data().deviceId || doc.id;
 
+            if (change.type === "added" || change.type === "modified") {
+                newOrModifiedDocs = true;
+                updateMarkersForDevice(doc);
+            }
+            if (change.type === "removed") {
+                if (busMarkers[deviceId]) {
+                    map.removeLayer(busMarkers[deviceId]);
+                    delete busMarkers[deviceId];
+                    delete lastDeviceUpdateTimes[deviceId]; // حذف از لیست زمان‌ها
+                    updateOverallLastUpdated(); // به‌روزرسانی نمایشگر زمان
+                }
+            }
+        });
+
+        // تنظیم خودکار زوم و مرکز نقشه بر اساس مارکرها
+        if (newOrModifiedDocs && Object.keys(busMarkers).length > 0) {
+           try {
+               var group = new L.featureGroup(Object.values(busMarkers));
+               map.fitBounds(group.getBounds().pad(0.3)); // pad برای فاصله از لبه‌ها
+           } catch(e) {
+               console.warn("خطا در تنظیم محدوده نقشه: ", e);
+           }
+        } else if (Object.keys(busMarkers).length === 0) {
+            // اگر هیچ مارکری وجود ندارد، به نمای پیش‌فرض برگرد
+            map.setView([32.4279, 53.6880], 6);
+        }
+
+    }, error => {
+        console.error("خطا در دریافت موقعیت‌ها از Firestore: ", error);
+        document.getElementById('lastUpdated').textContent = '⚠️ خطا در اتصال به سرور.';
+    });
 </script>
+
 </body>
 </html>
