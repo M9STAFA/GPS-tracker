@@ -1,88 +1,138 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>موقعیت اتوبوس‌ها (پروژه bus-tracker-app-usb)</title>
+    <title>GPS Tracker - Supabase</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+    <!-- Supabase.js SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <style>
         #map { height: calc(100vh - 70px); width: 100%; }
         body { font-family: 'Tahoma', sans-serif; margin:0; padding:0; direction: rtl; }
-        .header { background-color: #4CAF50; color: white; padding: 15px; text-align: center; font-size: 1.5em; }
+        .header { background-color: #3ecf8e; /* رنگ سبز Supabase */ color: white; padding: 15px; text-align: center; font-size: 1.5em; }
         .leaflet-popup-content { font-size: 14px; }
-        .last-updated-container { position: fixed; bottom: 10px; left: 10px; background-color: rgba(255, 255, 255, 0.8); padding: 5px 10px; border-radius: 5px; font-size: 12px; z-index: 1000; }
+        .status-bar { position: fixed; bottom: 10px; left: 10px; background-color: rgba(255, 255, 255, 0.85); padding: 8px 12px; border-radius: 5px; font-size: 13px; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
     </style>
 </head>
 <body>
-<div class="header">ردیاب آنلاین اتوبوس‌ها</div>
+<div class="header">ردیاب آنلاین اتوبوس‌ها (Supabase)</div>
 <div id="map"></div>
-<div id="lastUpdated" class="last-updated-container">در حال بارگذاری...</div>
+<div id="statusBar" class="status-bar">در حال اتصال به Supabase...</div>
+
 <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyCCNBFlmY3akMMsNoGecKTrOR_LMaHJ-6A",
-      authDomain: "bus-tracker-app-usb.firebaseapp.com",
-      projectId: "bus-tracker-app-usb",
-      storageBucket: "bus-tracker-app-usb.firebasestorage.app",
-      messagingSenderId: "652452426183",
-      appId: "1:652452426183:web:a0014cc421c727bf24a9e2",
-      measurementId: "G-C218VLB61E"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
-    const locationsCollection = db.collection("locations");
-    var map = L.map('map').setView([32.4279, 53.6880], 6);
+    const SUPABASE_URL = 'https://xqwgojhhzicequgakcpy.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxd2dvamhoemljZXF1Z2FrY3B5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg1MzY1NTAsImV4cCI6MjA2NDExMjU1MH0.znQuBZ8TVCpBR2IIFdM5x01544YChViJirP_Ia_wKZM';
+
+    const { createClient } = supabase;
+    const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const mapElement = document.getElementById('map');
+    const statusBarElement = document.getElementById('statusBar');
+    var map = L.map(mapElement).setView([32.4279, 53.6880], 6); // مرکز ایران
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        attribution: '© <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        attribution: '© <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
-    var busMarkers = {};
-    const lastDeviceUpdateTimes = {};
-    function formatReadableTimestamp(isoString) {
-        if (!isoString) return 'نامشخص';
-        try {
-            const date = new Date(isoString);
-            return date.toLocaleString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        } catch (e) { return 'نامشخص'; }
+
+    var busMarkers = {}; // { deviceId: L.Marker }
+
+    function updateStatusBar(message, isError = false) {
+        statusBarElement.textContent = message;
+        statusBarElement.style.color = isError ? 'red' : 'black';
     }
-    function updateMarkersForDevice(doc) {
-        const locationData = doc.data();
-        const deviceId = locationData.deviceId || doc.id;
-        const lat = locationData.latitude;
-        const lng = locationData.longitude;
-        const speed = locationData.speedKmph;
-        const gpsTimestamp = locationData.gpsTimestamp;
-        if (typeof lat !== 'number' || typeof lng !== 'number') { console.warn("داده موقعیت نامعتبر:", deviceId, locationData); return; }
-        lastDeviceUpdateTimes[deviceId] = new Date(gpsTimestamp || Date.now());
-        updateOverallLastUpdated();
-        var latLng = [lat, lng];
-        var popupContent = `<b>شناسه: ${deviceId}</b><br>سرعت: ${speed !== undefined ? parseFloat(speed).toFixed(1) + ' km/h' : 'N/A'}<br>زمان GPS: ${formatReadableTimestamp(gpsTimestamp)}`;
-        if (busMarkers[deviceId]) {
-            busMarkers[deviceId].setLatLng(latLng).setPopupContent(popupContent);
-        } else {
-            var busIcon = L.icon({ iconUrl: 'https://img.icons8.com/ios-filled/50/000000/bus.png', iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -28] });
-            busMarkers[deviceId] = L.marker(latLng, {icon: busIcon}).addTo(map).bindPopup(popupContent);
+
+    async function fetchAndUpdateMarkers() {
+        updateStatusBar('در حال دریافت آخرین موقعیت‌ها...');
+        const { data, error } = await _supabase
+            .from('locations') // نام جدول شما
+            .select('device_id, latitude, longitude, speed_kmph, gps_timestamp, created_at')
+            .order('created_at', { ascending: false })
+            .limit(100); // خواندن 100 رکورد آخر
+
+        if (error) {
+            console.error('Error fetching locations:', error);
+            updateStatusBar(`خطا در دریافت داده: ${error.message}`, true);
+            return;
+        }
+
+        if (data && data.length > 0) {
+            const latestDeviceData = {};
+            data.forEach(loc => {
+                if (!latestDeviceData[loc.device_id]) {
+                    latestDeviceData[loc.device_id] = loc;
+                }
+            });
+
+            let markersUpdatedCount = 0;
+            Object.values(latestDeviceData).forEach(location => {
+                if (!location.latitude || !location.longitude) {
+                    console.warn("داده موقعیت نامعتبر برای دستگاه:", location.device_id, location);
+                    return;
+                }
+                markersUpdatedCount++;
+                var deviceId = location.device_id;
+                var latLng = [location.latitude, location.longitude];
+                var popupContent = `<b>اتوبوس: ${deviceId}</b><br>
+                                    سرعت: ${location.speed_kmph != null ? parseFloat(location.speed_kmph).toFixed(1) + ' km/h' : 'N/A'}<br>
+                                    زمان GPS: ${location.gps_timestamp ? new Date(location.gps_timestamp).toLocaleString('fa-IR') : 'N/A'}<br>
+                                    ثبت در: ${new Date(location.created_at).toLocaleString('fa-IR')}`;
+
+                if (busMarkers[deviceId]) {
+                    busMarkers[deviceId].setLatLng(latLng).setPopupContent(popupContent);
+                } else {
+                    var busIcon = L.icon({ iconUrl: 'https://img.icons8.com/ios-filled/50/000000/bus.png', iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -28] });
+                    busMarkers[deviceId] = L.marker(latLng, {icon: busIcon}).addTo(map).bindPopup(popupContent);
+                }
+            });
+
+            if (markersUpdatedCount > 0 && Object.keys(busMarkers).length > 0) {
+               try {
+                   var group = new L.featureGroup(Object.values(busMarkers));
+                   map.fitBounds(group.getBounds().pad(0.3));
+               } catch(e) { console.warn("خطا در تنظیم محدوده نقشه:", e); }
+            }
+            updateStatusBar(`آخرین بروزرسانی: ${new Date().toLocaleTimeString('fa-IR')} - ${markersUpdatedCount} دستگاه نمایش داده شد.`);
+
+        } else if (data && data.length === 0) {
+            updateStatusBar('هنوز هیچ داده‌ای برای نمایش وجود ندارد.');
         }
     }
-    function updateOverallLastUpdated() {
-        let mostRecentTime = 0;
-        for (const device in lastDeviceUpdateTimes) { if (lastDeviceUpdateTimes[device].getTime() > mostRecentTime) mostRecentTime = lastDeviceUpdateTimes[device].getTime(); }
-        if (mostRecentTime > 0) document.getElementById('lastUpdated').textContent = 'آخرین بروزرسانی کلی: ' + new Date(mostRecentTime).toLocaleTimeString('fa-IR');
-        else document.getElementById('lastUpdated').textContent = 'در انتظار دریافت اطلاعات...';
-    }
-    locationsCollection.onSnapshot(snapshot => {
-        let newOrModifiedDocs = false;
-        snapshot.docChanges().forEach(change => {
-            const doc = change.doc; const deviceId = doc.data().deviceId || doc.id;
-            if (change.type === "added" || change.type === "modified") { newOrModifiedDocs = true; updateMarkersForDevice(doc); }
-            if (change.type === "removed") { if (busMarkers[deviceId]) { map.removeLayer(busMarkers[deviceId]); delete busMarkers[deviceId]; delete lastDeviceUpdateTimes[deviceId]; updateOverallLastUpdated(); } }
-        });
-        if (newOrModifiedDocs && Object.keys(busMarkers).length > 0) {
-           try { var group = new L.featureGroup(Object.values(busMarkers)); map.fitBounds(group.getBounds().pad(0.3));} catch(e) { console.warn("خطا در تنظیم محدوده نقشه: ", e); }
-        } else if (Object.keys(busMarkers).length === 0) { map.setView([32.4279, 53.6880], 6); }
-    }, error => { console.error("خطا در دریافت موقعیت‌ها از Firestore: ", error); document.getElementById('lastUpdated').textContent = 'خطا در اتصال به سرور.'; });
+
+    // استفاده از Supabase Realtime برای به‌روزرسانی‌های بلادرنگ
+    const realtimeChannel = _supabase.channel('public:locations')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'locations' },
+        (payload) => {
+          console.log('تغییر در Supabase دریافت شد:', payload);
+          updateStatusBar('داده جدید دریافت شد، در حال بروزرسانی نقشه...');
+          fetchAndUpdateMarkers(); // با دریافت هر تغییری، داده‌ها را مجدداً فچ و نقشه را آپدیت کن
+        }
+      )
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('با موفقیت به تغییرات بلادرنگ Supabase متصل شد!');
+          updateStatusBar('متصل شد! در انتظار دریافت موقعیت‌ها...');
+          fetchAndUpdateMarkers(); // اولین بار داده‌ها را بارگذاری کن
+        } else if (status === 'CHANNEL_ERROR') {
+            console.error('خطا در کانال بلادرنگ Supabase:', err);
+            updateStatusBar(`خطا در اتصال بلادرنگ: ${err ? err.message : 'خطای نامشخص'}`, true);
+        } else if (status === 'TIMED_OUT') {
+            console.warn('اتصال بلادرنگ Supabase منقضی شد.');
+            updateStatusBar('اتصال بلادرنگ منقضی شد. تلاش مجدد...', true);
+        } else {
+            console.log('وضعیت کانال بلادرنگ Supabase:', status);
+        }
+      });
+
+    // اگر نمی‌خواهید از بلادرنگ استفاده کنید، این خطوط را جایگزین قسمت بالا کنید:
+    // fetchAndUpdateMarkers();
+    // setInterval(fetchAndUpdateMarkers, 20000); // هر 20 ثانیه
+
 </script>
 </body>
 </html>
