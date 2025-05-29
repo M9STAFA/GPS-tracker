@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>موقعیت اتوبوس‌ها (پروژه bus-tracker-app-usb)</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+    <style>
+        #map { height: calc(100vh - 70px); width: 100%; }
+        body { font-family: 'Tahoma', sans-serif; margin:0; padding:0; direction: rtl; }
+        .header { background-color: #4CAF50; color: white; padding: 15px; text-align: center; font-size: 1.5em; }
+        .leaflet-popup-content { font-size: 14px; }
+        .last-updated-container { position: fixed; bottom: 10px; left: 10px; background-color: rgba(255, 255, 255, 0.8); padding: 5px 10px; border-radius: 5px; font-size: 12px; z-index: 1000; }
+    </style>
+</head>
+<body>
+<div class="header">ردیاب آنلاین اتوبوس‌ها</div>
+<div id="map"></div>
+<div id="lastUpdated" class="last-updated-container">در حال بارگذاری...</div>
+<script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCCNBFlmY3akMMsNoGecKTrOR_LMaHJ-6A",
+      authDomain: "bus-tracker-app-usb.firebaseapp.com",
+      projectId: "bus-tracker-app-usb",
+      storageBucket: "bus-tracker-app-usb.firebasestorage.app",
+      messagingSenderId: "652452426183",
+      appId: "1:652452426183:web:a0014cc421c727bf24a9e2",
+      measurementId: "G-C218VLB61E"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const locationsCollection = db.collection("locations");
+    var map = L.map('map').setView([32.4279, 53.6880], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    var busMarkers = {};
+    const lastDeviceUpdateTimes = {};
+    function formatReadableTimestamp(isoString) {
+        if (!isoString) return 'نامشخص';
+        try {
+            const date = new Date(isoString);
+            return date.toLocaleString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        } catch (e) { return 'نامشخص'; }
+    }
+    function updateMarkersForDevice(doc) {
+        const locationData = doc.data();
+        const deviceId = locationData.deviceId || doc.id;
+        const lat = locationData.latitude;
+        const lng = locationData.longitude;
+        const speed = locationData.speedKmph;
+        const gpsTimestamp = locationData.gpsTimestamp;
+        if (typeof lat !== 'number' || typeof lng !== 'number') { console.warn("داده موقعیت نامعتبر:", deviceId, locationData); return; }
+        lastDeviceUpdateTimes[deviceId] = new Date(gpsTimestamp || Date.now());
+        updateOverallLastUpdated();
+        var latLng = [lat, lng];
+        var popupContent = `<b>شناسه: ${deviceId}</b><br>سرعت: ${speed !== undefined ? parseFloat(speed).toFixed(1) + ' km/h' : 'N/A'}<br>زمان GPS: ${formatReadableTimestamp(gpsTimestamp)}`;
+        if (busMarkers[deviceId]) {
+            busMarkers[deviceId].setLatLng(latLng).setPopupContent(popupContent);
+        } else {
+            var busIcon = L.icon({ iconUrl: 'https://img.icons8.com/ios-filled/50/000000/bus.png', iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -28] });
+            busMarkers[deviceId] = L.marker(latLng, {icon: busIcon}).addTo(map).bindPopup(popupContent);
+        }
+    }
+    function updateOverallLastUpdated() {
+        let mostRecentTime = 0;
+        for (const device in lastDeviceUpdateTimes) { if (lastDeviceUpdateTimes[device].getTime() > mostRecentTime) mostRecentTime = lastDeviceUpdateTimes[device].getTime(); }
+        if (mostRecentTime > 0) document.getElementById('lastUpdated').textContent = 'آخرین بروزرسانی کلی: ' + new Date(mostRecentTime).toLocaleTimeString('fa-IR');
+        else document.getElementById('lastUpdated').textContent = 'در انتظار دریافت اطلاعات...';
+    }
+    locationsCollection.onSnapshot(snapshot => {
+        let newOrModifiedDocs = false;
+        snapshot.docChanges().forEach(change => {
+            const doc = change.doc; const deviceId = doc.data().deviceId || doc.id;
+            if (change.type === "added" || change.type === "modified") { newOrModifiedDocs = true; updateMarkersForDevice(doc); }
+            if (change.type === "removed") { if (busMarkers[deviceId]) { map.removeLayer(busMarkers[deviceId]); delete busMarkers[deviceId]; delete lastDeviceUpdateTimes[deviceId]; updateOverallLastUpdated(); } }
+        });
+        if (newOrModifiedDocs && Object.keys(busMarkers).length > 0) {
+           try { var group = new L.featureGroup(Object.values(busMarkers)); map.fitBounds(group.getBounds().pad(0.3));} catch(e) { console.warn("خطا در تنظیم محدوده نقشه: ", e); }
+        } else if (Object.keys(busMarkers).length === 0) { map.setView([32.4279, 53.6880], 6); }
+    }, error => { console.error("خطا در دریافت موقعیت‌ها از Firestore: ", error); document.getElementById('lastUpdated').textContent = 'خطا در اتصال به سرور.'; });
+</script>
+</body>
+</html>
