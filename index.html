@@ -12,7 +12,7 @@
     <style>
         #map { height: calc(100vh - 70px); width: 100%; }
         body { font-family: 'Tahoma', sans-serif; margin:0; padding:0; direction: rtl; }
-        .header { background-color: #3ecf8e; /* رنگ سبز Supabase */ color: white; padding: 15px; text-align: center; font-size: 1.5em; }
+        .header { background-color: #3ecf8e; color: white; padding: 15px; text-align: center; font-size: 1.5em; }
         .leaflet-popup-content { font-size: 14px; }
         .status-bar { position: fixed; bottom: 10px; left: 10px; background-color: rgba(255, 255, 255, 0.85); padding: 8px 12px; border-radius: 5px; font-size: 13px; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
     </style>
@@ -26,8 +26,7 @@
     const SUPABASE_URL = 'https://xqwgojhhzicequgakcpy.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxd2dvamhoemljZXF1Z2FrY3B5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg1MzY1NTAsImV4cCI6MjA2NDExMjU1MH0.znQuBZ8TVCpBR2IIFdM5x01544YChViJirP_Ia_wKZM';
 
-    const { createClient } = supabase;
-    const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const mapElement = document.getElementById('map');
     const statusBarElement = document.getElementById('statusBar');
@@ -48,10 +47,10 @@
     async function fetchAndUpdateMarkers() {
         updateStatusBar('در حال دریافت آخرین موقعیت‌ها...');
         const { data, error } = await _supabase
-            .from('locations') // نام جدول شما
+            .from('locations')
             .select('device_id, latitude, longitude, speed_kmph, gps_timestamp, created_at')
             .order('created_at', { ascending: false })
-            .limit(100); // خواندن 100 رکورد آخر
+            .limit(100);
 
         if (error) {
             console.error('Error fetching locations:', error);
@@ -93,16 +92,16 @@
                try {
                    var group = new L.featureGroup(Object.values(busMarkers));
                    map.fitBounds(group.getBounds().pad(0.3));
-               } catch(e) { console.warn("خطا در تنظیم محدوده نقشه:", e); }
+               } catch(e) {
+                   console.warn("خطا در تنظیم محدوده نقشه:", e);
+               }
             }
             updateStatusBar(`آخرین بروزرسانی: ${new Date().toLocaleTimeString('fa-IR')} - ${markersUpdatedCount} دستگاه نمایش داده شد.`);
-
         } else if (data && data.length === 0) {
             updateStatusBar('هنوز هیچ داده‌ای برای نمایش وجود ندارد.');
         }
     }
 
-    // استفاده از Supabase Realtime برای به‌روزرسانی‌های بلادرنگ
     const realtimeChannel = _supabase.channel('public:locations')
       .on(
         'postgres_changes',
@@ -110,14 +109,14 @@
         (payload) => {
           console.log('تغییر در Supabase دریافت شد:', payload);
           updateStatusBar('داده جدید دریافت شد، در حال بروزرسانی نقشه...');
-          fetchAndUpdateMarkers(); // با دریافت هر تغییری، داده‌ها را مجدداً فچ و نقشه را آپدیت کن
+          fetchAndUpdateMarkers();
         }
       )
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
           console.log('با موفقیت به تغییرات بلادرنگ Supabase متصل شد!');
           updateStatusBar('متصل شد! در انتظار دریافت موقعیت‌ها...');
-          fetchAndUpdateMarkers(); // اولین بار داده‌ها را بارگذاری کن
+          fetchAndUpdateMarkers();
         } else if (status === 'CHANNEL_ERROR') {
             console.error('خطا در کانال بلادرنگ Supabase:', err);
             updateStatusBar(`خطا در اتصال بلادرنگ: ${err ? err.message : 'خطای نامشخص'}`, true);
@@ -129,9 +128,9 @@
         }
       });
 
-    // اگر نمی‌خواهید از بلادرنگ استفاده کنید، این خطوط را جایگزین قسمت بالا کنید:
+    // اگر نمی‌خواهید از بلادرنگ استفاده کنید:
     // fetchAndUpdateMarkers();
-    // setInterval(fetchAndUpdateMarkers, 20000); // هر 20 ثانیه
+    // setInterval(fetchAndUpdateMarkers, 20000);
 
 </script>
 </body>
