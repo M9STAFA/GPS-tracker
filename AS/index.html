@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ردیاب آنلاین اتوبوس‌ها - نسخه مدرن</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <!-- Google Fonts - Vazirmatn -->
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome (اختیاری - برای آیکون‌های بهتر) -->
+    <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" /> -->
+
+    <style>
+        body {
+            font-family: 'Vazirmatn', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+
+        .header {
+            background: linear-gradient(90deg, #2c3e50, #3498db); /* گرادیانت مدرن */
+            color: white;
+            padding: 18px 20px;
+            text-align: center;
+            font-size: 1.6em;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .header svg { /* آیکون اتوبوس SVG ساده */
+            width: 30px;
+            height: 30px;
+            fill: white;
+            margin-left: 10px;
+        }
+
+        #map-container {
+            flex-grow: 1; /* باعث می‌شود نقشه تمام فضای باقی‌مانده را بگیرد */
+            position: relative;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        .footer {
+            background-color: #2c3e50; /* رنگ تیره برای فوتر */
+            color: #bdc3c7; /* خاکستری روشن برای متن فوتر */
+            padding: 12px 20px;
+            text-align: center;
+            font-size: 0.9em;
+        }
+        .footer a {
+            color: #3498db; /* آبی روشن برای لینک */
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* استایل پاپ‌آپ مارکر Leaflet */
+        .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+        }
+        .leaflet-popup-content {
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .leaflet-popup-content b {
+            color: #3498db;
+        }
+
+        /* استایل Modal (پاپ‌آپ اطلاعات تیم) */
+        .modal {
+            display: none; /* به طور پیش‌فرض مخفی */
+            position: fixed;
+            z-index: 2000; /* بالاتر از نقشه و سایر عناصر */
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.6); /* پس‌زمینه نیمه‌شفاف */
+            animation: fadeIn 0.3s ease-out;
+        }
+        .modal-content {
+            background-color: #fff;
+            margin: 10% auto;
+            padding: 25px 30px;
+            border: 1px solid #ddd;
+            width: 80%;
+            max-width: 550px;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            text-align: center;
+            position: relative;
+            animation: slideIn 0.4s ease-out;
+        }
+        .close-button {
+            color: #aaa;
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 30px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: #333;
+        }
+        .modal-content h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+        .modal-content p {
+            font-size: 1.1em;
+            line-height: 1.7;
+            margin-bottom: 15px;
+            color: #555;
+        }
+        .team-info img {
+            max-width: 150px; /* اندازه لوگوی دانشگاه */
+            height: auto;
+            margin-bottom: 20px;
+            border-radius: 8px; /* گرد کردن گوشه لوگو */
+        }
+        .contact-info {
+            margin-top: 25px;
+            font-size: 1em;
+        }
+        .contact-info a {
+            color: #3498db;
+            text-decoration: none;
+            margin: 0 10px;
+        }
+        .contact-info a:hover {
+            text-decoration: underline;
+        }
+
+        /* انیمیشن‌های ساده برای Modal */
+        @keyframes fadeIn { from {opacity: 0;} to {opacity: 1;} }
+        @keyframes slideIn { from {transform: translateY(-50px); opacity: 0;} to {transform: translateY(0); opacity: 1;} }
+
+        /* استایل وضعیت بار */
+        .status-bar {
+            position: absolute; /* نسبت به map-container */
+            bottom: 15px;
+            right: 15px; /* تغییر به سمت راست */
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            z-index: 1000;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+            border: 1px solid #eee;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <svg viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5H15V3H9v2H6.5c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5s1.5.67 1.5 1.5s-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"></path></svg>
+    ردیاب آنلاین اتوبوس‌ها
+</div>
+
+<div id="map-container">
+    <div id="map"></div>
+    <div id="statusBar" class="status-bar">در حال اتصال...</div>
+</div>
+
+<div class="footer">
+    ساخته شده به دست دانشجویان دانشکده برق و کامپیوتر - <a href="#" id="openTeamModal">بیشتر...</a>
+</div>
+
+<!-- Modal اطلاعات تیم -->
+<div id="teamModal" class="modal">
+    <div class="modal-content">
+        <span class="close-button" id="closeTeamModal">×</span>
+        <h2>تیم سازنده پروژه</h2>
+        <div class="team-info">
+            <!-- URL لوگوی دانشگاه خود را اینجا قرار دهید -->
+            <img src="https://via.placeholder.com/150x80.png?text=لوگوی+دانشگاه" alt="لوگوی دانشگاه">
+            <p>این پروژه توسط جمعی از دانشجویان علاقه‌مند دانشکده مهندسی برق و کامپیوتر دانشگاه [نام دانشگاه شما] به عنوان یک پروژه [آموزشی/تحقیقاتی/آزاد] توسعه داده شده است.</p>
+            <p>اعضای تیم:</p>
+            <ul>
+                <li>نام عضو اول - نقش</li>
+                <li>نام عضو دوم - نقش</li>
+                <li>نام عضو سوم - نقش</li>
+                <!-- اعضای بیشتر -->
+            </ul>
+        </div>
+        <div class="contact-info">
+            <p>اطلاعات تماس:</p>
+            <a href="mailto:email@example.com">ایمیل تیم</a> |
+            <a href="https://github.com/your-repo" target="_blank">پروژه در گیت‌هاب</a>
+            <!-- لینک‌های بیشتر -->
+        </div>
+    </div>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Supabase.js SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+    // Supabase Configuration - مقادیر خود را جایگزین کنید
+    const SUPABASE_URL = 'https://xqwgojhhzicequgakcpy.supabase.co'; // URL پروژه شما
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxd2dvamhoemljZXF1Z2FrY3B5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg1MzY1NTAsImV4cCI6MjA2NDExMjU1MH0.znQuBZ8TVCpBR2IIFdM5x01544YChViJirP_Ia_wKZM'; // کلید anon public شما
+
+    const { createClient } = supabase;
+    const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const mapElement = document.getElementById('map');
+    const statusBarElement = document.getElementById('statusBar');
+    var map = L.map(mapElement).setView([32.4279, 53.6880], 6);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    var busMarkers = {};
+
+    function updateStatusBar(message, isError = false) {
+        statusBarElement.textContent = message;
+        statusBarElement.style.color = isError ? '#c0392b' : '#2c3e50'; // قرمز برای خطا، تیره برای عادی
+    }
+
+    async function fetchAndUpdateMarkers() {
+        updateStatusBar('در حال دریافت آخرین موقعیت‌ها...');
+        const { data, error } = await _supabase
+            .from('locations')
+            .select('device_id, latitude, longitude, speed_kmph, gps_timestamp, created_at')
+            .order('created_at', { ascending: false })
+            .limit(100);
+
+        if (error) {
+            console.error('Error fetching locations:', error);
+            updateStatusBar(`خطا: ${error.message}`, true);
+            return;
+        }
+
+        if (data && data.length >= 0) { // تغییر به >= برای نمایش پیام "داده‌ای نیست"
+            const latestDeviceData = {};
+            data.forEach(loc => {
+                if (!latestDeviceData[loc.device_id]) {
+                    latestDeviceData[loc.device_id] = loc;
+                }
+            });
+
+            let markersOnMap = Object.keys(latestDeviceData).length;
+            // حذف مارکرهای قدیمی که دیگر در داده‌های جدید نیستند (اگر لازم باشد)
+            // for (const deviceIdInMap in busMarkers) {
+            //     if (!latestDeviceData[deviceIdInMap]) {
+            //         map.removeLayer(busMarkers[deviceIdInMap]);
+            //         delete busMarkers[deviceIdInMap];
+            //     }
+            // }
+
+
+            Object.values(latestDeviceData).forEach(location => {
+                if (location.latitude == null || location.longitude == null) { // بررسی دقیق‌تر برای null یا undefined
+                    console.warn("داده موقعیت نامعتبر برای دستگاه:", location.device_id, location);
+                    return;
+                }
+
+                var deviceId = location.device_id;
+                var latLng = [location.latitude, location.longitude];
+                var popupContent = `<b>شناسه: ${deviceId}</b><br>
+                                    سرعت: ${location.speed_kmph != null ? parseFloat(location.speed_kmph).toFixed(1) + ' km/h' : 'نامشخص'}<br>
+                                    زمان GPS: ${location.gps_timestamp ? new Date(location.gps_timestamp).toLocaleString('fa-IR', {timeZone: 'Asia/Tehran'}) : 'نامشخص'}<br>
+                                    ثبت در سرور: ${new Date(location.created_at).toLocaleString('fa-IR', {timeZone: 'Asia/Tehran'})}`;
+
+
+                if (busMarkers[deviceId]) {
+                    busMarkers[deviceId].setLatLng(latLng).setPopupContent(popupContent);
+                } else {
+                    // استفاده از آیکون SVG ساده برای اتوبوس
+                    var busIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32" fill="#3498db"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5H15V3H9v2H6.5c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5s1.5.67 1.5 1.5s-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>`;
+                    var customIcon = L.divIcon({
+                        html: busIconSvg,
+                        className: 'custom-leaflet-bus-icon', // برای استایل‌دهی بیشتر اگر لازم باشد
+                        iconSize: [32, 32],
+                        iconAnchor: [16, 32],
+                        popupAnchor: [0, -32]
+                    });
+                    busMarkers[deviceId] = L.marker(latLng, {icon: customIcon}).addTo(map).bindPopup(popupContent);
+                }
+            });
+
+            if (markersOnMap > 0 && Object.keys(busMarkers).length > 0) {
+               try {
+                   var group = new L.featureGroup(Object.values(busMarkers));
+                   if (map.getZoom() < 4 ) { // فقط اگر زوم خیلی دور است، فیت کن
+                        map.fitBounds(group.getBounds().pad(0.3));
+                   }
+               } catch(e) { console.warn("خطا در تنظیم محدوده نقشه:", e); }
+            }
+             updateStatusBar(`آخرین بروزرسانی: ${new Date().toLocaleTimeString('fa-IR', {timeZone: 'Asia/Tehran'})} (${markersOnMap} دستگاه)`);
+        } else {
+            updateStatusBar('هنوز داده‌ای از اتوبوس‌ها دریافت نشده است.');
+        }
+    }
+
+    // مدیریت Modal (پاپ‌آپ اطلاعات تیم)
+    var modal = document.getElementById("teamModal");
+    var openModalBtn = document.getElementById("openTeamModal");
+    var closeModalBtn = document.getElementById("closeTeamModal");
+
+    openModalBtn.onclick = function(event) {
+        event.preventDefault(); // جلوگیری از رفتار پیش‌فرض لینک
+        modal.style.display = "block";
+    }
+    closeModalBtn.onclick = function() {
+        modal.style.display = "none";
+    }
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            modal.style.display = "none";
+        }
+    }
+
+    // اتصال به تغییرات بلادرنگ Supabase
+    const realtimeChannel = _supabase.channel('public:locations-channel') // نام کانال می‌تواند دلخواه باشد
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'locations' }, // گوش دادن به همه تغییرات در جدول locations
+        (payload) => {
+          console.log('تغییر در Supabase دریافت شد:', payload);
+          updateStatusBar('داده جدید دریافت شد، بروزرسانی نقشه...');
+          fetchAndUpdateMarkers();
+        }
+      )
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('با موفقیت به تغییرات بلادرنگ Supabase متصل شد!');
+          updateStatusBar('متصل به سرور. در انتظار دریافت موقعیت‌ها...');
+          fetchAndUpdateMarkers(); // بارگذاری اولیه داده‌ها
+        } else if (status === 'CHANNEL_ERROR') {
+            console.error('خطا در کانال بلادرنگ Supabase:', err);
+            updateStatusBar(`خطا در اتصال بلادرنگ: ${err ? err.message : 'نامشخص'}`, true);
+            // در صورت خطا، به polling برگرد (اختیاری)
+            // setInterval(fetchAndUpdateMarkers, 30000);
+        } else {
+            console.log('وضعیت کانال بلادرنگ Supabase:', status);
+            // ممکن است بخواهید برای وضعیت‌های دیگر مانند TIMED_OUT هم polling را فعال کنید
+        }
+      });
+
+    // در صورتی که اتصال بلادرنگ برقرار نشود یا به عنوان fallback
+    // اگر پس از چند ثانیه هنوز به SUBSCRIBED نرسیده، polling را شروع کن
+    // setTimeout(() => {
+    //     if (realtimeChannel.state !== 'joined') { // 'joined' یا 'open' بسته به نسخه SDK
+    //         console.warn("اتصال بلادرنگ برقرار نشد، از polling استفاده می‌شود.");
+    //         updateStatusBar("استفاده از بروزرسانی دوره‌ای.", true);
+    //         fetchAndUpdateMarkers(); // یکبار فچ کن
+    //         setInterval(fetchAndUpdateMarkers, 30000); // هر 30 ثانیه
+    //     }
+    // }, 10000); // 10 ثانیه صبر کن
+
+</script>
+</body>
+</html>
