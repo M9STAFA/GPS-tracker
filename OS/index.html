@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ردیاب آنلاین اتوبوس‌ها</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap');
+
+    body {
+      font-family: 'Vazirmatn', sans-serif;
+      margin: 0;
+      padding: 0;
+      direction: rtl;
+      background-color: #f3f4f6;
+    }
+
+    .header {
+      background-color: #10b981;
+      color: white;
+      padding: 20px;
+      text-align: center;
+      font-size: 1.8em;
+      position: relative;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .header img {
+      position: absolute;
+      left: 20px;
+      top: 12px;
+      height: 40px;
+    }
+
+    #map {
+      height: calc(100vh - 140px);
+      width: 100%;
+    }
+
+    .status-bar {
+      background-color: white;
+      padding: 10px;
+      text-align: center;
+      font-size: 0.9em;
+      color: #333;
+      border-top: 1px solid #ccc;
+      box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+    }
+
+    .footer {
+      text-align: center;
+      padding: 15px;
+      font-size: 0.9em;
+      background: #e5e7eb;
+    }
+
+    .footer a {
+      color: #0f766e;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
+    /* پاپ‌آپ */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 9999;
+      padding-top: 100px;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+    }
+
+    .modal-content {
+      margin: auto;
+      background-color: #fff;
+      padding: 25px;
+      border-radius: 10px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+
+    .modal-content h2 {
+      margin-top: 0;
+      color: #0f766e;
+    }
+
+    .close {
+      color: #999;
+      float: left;
+      font-size: 28px;
+      cursor: pointer;
+    }
+
+    .team-info p {
+      margin: 8px 0;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/University_of_Tehran_logo.svg/2560px-University_of_Tehran_logo.svg.png" alt="University Logo"/>
+  ردیاب آنلاین اتوبوس‌ها (Supabase)
+</div>
+
+<div id="map"></div>
+
+<div id="statusBar" class="status-bar">در حال اتصال به Supabase...</div>
+
+<div class="footer">
+  ساخته شده به دست دانشجویان دانشکده مهندسی برق و کامپیوتر | <a onclick="document.getElementById('teamModal').style.display='block'">بیشتر</a>
+</div>
+
+<!-- پاپ‌آپ اطلاعات تیم -->
+<div id="teamModal" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="document.getElementById('teamModal').style.display='none'">&times;</span>
+    <h2>تیم توسعه</h2>
+    <div class="team-info">
+      <p><strong>نام پروژه:</strong> ردیاب هوشمند ناوگان اتوبوس</p>
+      <p><strong>اعضا:</strong></p>
+      <ul>
+        <li>مصطفی [مدیر پروژه و برنامه‌نویس فرانت]</li>
+        <li>روح‌الله [ارتباط با سرور و Supabase]</li>
+        <li>احسان [تست و بهینه‌سازی]</li>
+      </ul>
+      <p><strong>تماس:</strong> <a href="mailto:bus.tracker.team@example.com">bus.tracker.team@example.com</a></p>
+      <p><strong>گیت‌هاب:</strong> <a href="https://github.com/mostafa-projects/bus-tracker" target="_blank">مشاهده پروژه در GitHub</a></p>
+    </div>
+  </div>
+</div>
+
+<script>
+  const SUPABASE_URL = 'https://xqwgojhhzicequgakcpy.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJ...ZM'; // کوتاه شده برای نمایش
+
+  const { createClient } = supabase;
+  const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const mapElement = document.getElementById('map');
+  const statusBarElement = document.getElementById('statusBar');
+  var map = L.map(mapElement).setView([32.4279, 53.6880], 6);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  var busMarkers = {};
+
+  function updateStatusBar(message, isError = false) {
+    statusBarElement.textContent = message;
+    statusBarElement.style.color = isError ? 'red' : '#333';
+  }
+
+  async function fetchAndUpdateMarkers() {
+    updateStatusBar('در حال دریافت اطلاعات...');
+    const { data, error } = await _supabase
+      .from('locations')
+      .select('device_id, latitude, longitude, speed_kmph, gps_timestamp, created_at')
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error) {
+      updateStatusBar(`خطا: ${error.message}`, true);
+      return;
+    }
+
+    const latest = {};
+    data.forEach(loc => {
+      if (!latest[loc.device_id]) latest[loc.device_id] = loc;
+    });
+
+    Object.values(latest).forEach(loc => {
+      const latlng = [loc.latitude, loc.longitude];
+      const popup = `
+        <b>اتوبوس: ${loc.device_id}</b><br>
+        سرعت: ${loc.speed_kmph ? parseFloat(loc.speed_kmph).toFixed(1) + ' km/h' : 'N/A'}<br>
+        GPS: ${new Date(loc.gps_timestamp).toLocaleString('fa-IR')}<br>
+        ثبت: ${new Date(loc.created_at).toLocaleString('fa-IR')}
+      `;
+
+      if (busMarkers[loc.device_id]) {
+        busMarkers[loc.device_id].setLatLng(latlng).setPopupContent(popup);
+      } else {
+        var icon = L.icon({
+          iconUrl: 'https://img.icons8.com/ios-filled/50/000000/bus.png',
+          iconSize: [32, 32],
+          iconAnchor: [16, 32],
+          popupAnchor: [0, -28]
+        });
+        busMarkers[loc.device_id] = L.marker(latlng, { icon }).addTo(map).bindPopup(popup);
+      }
+    });
+
+    updateStatusBar(`بروزرسانی در ${new Date().toLocaleTimeString('fa-IR')}`);
+  }
+
+  const channel = _supabase.channel('public:locations')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'locations' }, (payload) => {
+      updateStatusBar('داده جدید دریافت شد...');
+      fetchAndUpdateMarkers();
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        updateStatusBar('متصل شد! در حال بارگذاری...');
+        fetchAndUpdateMarkers();
+      }
+    });
+
+  // بستن مودال با کلیک بیرون آن
+  window.onclick = function(event) {
+    const modal = document.getElementById('teamModal');
+    if (event.target === modal) {
+      modal.style.display = 'none';
+    }
+  }
+</script>
+</body>
+</html>
